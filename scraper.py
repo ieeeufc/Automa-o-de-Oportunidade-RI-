@@ -50,7 +50,7 @@ def buscar_editais_reais(url_alvo, id_sociedade, categoria):
     # 3. A LÓGICA DE EXTRAÇÃO (O coração do scraper)
     # Exemplo genérico: Busca todos os links (tags <a>) dentro de artigos
     # Terá de ajustar o 'a' e a 'class_' conforme a estrutura real do site alvo
-    elementos_html = site.find_all('a', href=True)
+    elementos_html = site.find_all('a', class_='btn orange mb-3')
 
     for elemento in elementos_html:
         titulo = elemento.text.strip()
@@ -65,6 +65,42 @@ def buscar_editais_reais(url_alvo, id_sociedade, categoria):
 
     return editais_encontrados
 
+def salvar_no_banco(editais):
+    print("\n --- Salvando editais no banco de dados ---")
+    try:
+        conexao = mysql.connector.connect(
+            host= '127.0.0.1',
+            database= 'ieee_automacao',
+            user= 'root',
+            password= ''
+        )
+        
+        if conexao.is_connected():
+            cursor = conexao.cursor()
+
+            for edital in editais:
+                id_sociedade, titulo, link, categoria = edital
+
+                # O INSERT IGNORE garante que não teremos links duplicados
+                comando_sql = """
+                    INSERT IGNORE INTO oportunidades
+                    (id_sociedade, titulo, url_alvo, categoria)
+                    VALUES (%s, %s, %s, %s)
+                """
+                cursor.execute(comando_sql, (id_sociedade, titulo, link, categoria))
+                conexao.commit()
+
+                if cursor.rowcount > 0:
+                    print(f"Salvo no banco: {titulo}")
+                else:
+                    print(f"Link já existente no banco: {titulo}")
+
+            cursor.close()
+            conexao.close()
+
+    except Error as erro:
+        print(f"Erro ao salvar no banco de dados MariaDB: {erro}") 
+
 if __name__ == "__main__":
 
     # URL atualizada de fundos e prêmios do IEEE
@@ -76,4 +112,10 @@ if __name__ == "__main__":
     print("Iniciando o motor de busca...")
     editais = buscar_editais_reais(url_teste, id_sociedade_sac, "Financiamento Estudantil")
 
-    print(f"\nTotal de links encontrados: {len(editais)}")
+    if editais:
+        salvar_no_banco(editais)
+    else:
+        print("Nenhum edital encontrado para salvar no banco de dados.")
+
+
+ 
